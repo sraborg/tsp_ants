@@ -23,6 +23,8 @@ graph.generate_random_edge_weights(max=args.max_edge_weight)
 alg = None
 if args.method.upper() == "TABUACO":
     alg = TabuAco(graph, args.a, alpha=args.alpha, beta=args.beta, epsilon=args.epsilon, iterations=args.iterations)
+elif args.method.upper() == "Hybrid":
+    pass
 else:
     alg = Aco(graph, args.a, alpha=args.alpha, beta=args.beta, epsilon=args.epsilon, iterations=args.iterations)
 
