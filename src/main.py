@@ -3,9 +3,10 @@ from aco import Aco, TabuAco
 from pheromone_graph import PheromoneGraph
 # Main Parser
 parser = argparse.ArgumentParser()
-methods = ["aco", "taboaco", "hybrid"]
+methods = ["aco", "tabu_aco", "hybrid"]
 parser.add_argument('-a', type=int, help='Number of Ants', default=10)
 parser.add_argument('-n', type=int, help='Number of Cities', default=10)
+parser.add_argument('-l', "load_graph", type=str)
 parser.add_argument('-m', "--method", type=str, choices=methods, required=True)
 parser.add_argument('-i', '--iterations', type=int, help='Number of iterations to search for an optimal solution', default=20)
 parser.add_argument('--alpha', type=float, help='Alpha parameter used to weight pheromones', default=1.0)
@@ -21,7 +22,7 @@ graph.generate_random_edge_weights(max=args.max_edge_weight)
 
 # Setup Algorithm
 alg = None
-if args.method.upper() == "TABUACO":
+if args.method.upper() == "TABU_ACO":
     alg = TabuAco(graph, args.a, alpha=args.alpha, beta=args.beta, epsilon=args.epsilon, iterations=args.iterations)
 elif args.method.upper() == "Hybrid":
     pass

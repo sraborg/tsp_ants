@@ -4,6 +4,8 @@ from multiprocessing import Process
 import matplotlib.pyplot as plt
 import random
 from typing import Tuple, TYPE_CHECKING
+from datetime import datetime
+import pickle
 import types
 
 # Import Following for type checking only
@@ -48,11 +50,18 @@ class PheromoneGraph(nx.classes.Graph):
         # Initialize Pheromones
         g.initialize_pheromone_levels()
 
+        # Save graph
+        filename = str(datetime.now()) + "_" + str(num_cities) + "_cities_graph.pkl"
+        with open(filename, 'wb') as output:  # Overwrites any existing file.
+            pickle.dump(g, output, pickle.HIGHEST_PROTOCOL)
+
         g.pos = nx.spring_layout(g)  # positions for all nodes
         plt.figure(3, figsize=(12, 12))
         plt.ion()
         plt.show()
         g.draw()
+
+
 
         return g
 
