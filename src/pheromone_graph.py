@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import random
 from typing import Tuple, TYPE_CHECKING
 from datetime import datetime
-import pickle
+import json
 import types
 
 # Import Following for type checking only
@@ -43,6 +43,7 @@ class PheromoneGraph(nx.classes.Graph):
         g.local_pheromone_update = types.MethodType(local_pheromone_update, g)
         g.generate_random_edge_weights = types.MethodType(generate_random_edge_weights, g)
         g.get_path_value = types.MethodType(get_path_value, g)
+        g.save_graph = types.MethodType(save_graph, g)
         g.draw = types.MethodType(draw, g)
         #g._draw = types.MethodType(_draw, g)
         #g.close_drawing = types.MethodType(close_drawing, g)
@@ -50,22 +51,45 @@ class PheromoneGraph(nx.classes.Graph):
         # Initialize Pheromones
         g.initialize_pheromone_levels()
 
-        # Save graph
-        filename = str(datetime.now()) + "_" + str(num_cities) + "_cities_graph.pkl"
-        with open(filename, 'wb') as output:  # Overwrites any existing file.
-            pickle.dump(g, output, pickle.HIGHEST_PROTOCOL)
-
         g.pos = nx.spring_layout(g)  # positions for all nodes
         plt.figure(3, figsize=(12, 12))
         plt.ion()
         plt.show()
         g.draw()
 
-
-
         return g
 
+    @staticmethod
+    def load_graph(filename, local_evaporation_rate:float = 0.1,
+                   global_evaporation_rate:float = 0.2, initial_pheromone_value:float = 1):
 
+        with open(filename, mode='r') as json_input:
+            graph_data = json.load(json_input)
+            g = nx.readwrite.json_graph.node_link_graph(graph_data)
+
+            # add additional properties to the graph
+            g.initial_pheromone_value = initial_pheromone_value
+            g.local_evaporation_rate = local_evaporation_rate
+            g.global_evaporation_rate = global_evaporation_rate
+
+            # Bind the Additional Methods
+            g.initialize_pheromone_levels = types.MethodType(initialize_pheromone_levels, g)
+            g.pheromone_update = types.MethodType(pheromone_update, g)
+            g.local_pheromone_update = types.MethodType(local_pheromone_update, g)
+            g.generate_random_edge_weights = types.MethodType(generate_random_edge_weights, g)
+            g.get_path_value = types.MethodType(get_path_value, g)
+            g.save_graph = types.MethodType(save_graph, g)
+            g.draw = types.MethodType(draw, g)
+            # g._draw = types.MethodType(_draw, g)
+            # g.close_drawing = types.MethodType(close_drawing, g)
+
+            g.pos = nx.spring_layout(g)  # positions for all nodes
+            plt.figure(3, figsize=(12, 12))
+            plt.ion()
+            plt.show()
+            g.draw()
+
+            return g
 ##
 #
 # The Following are methods that are bound at runtime to the networkx graph class
@@ -83,6 +107,20 @@ def generate_random_edge_weights(self, min=1, max=100):
         self.edges[n1,n2]['weight'] = random.randint(min, max)
 
 
+def save_graph(self):
+    """
+
+    :param self:
+    :return:
+    """
+
+    # Save graph
+    num_nodes = self.number_of_nodes()
+    filename = str(datetime.now().timestamp()) + "_" + str(num_nodes) + "_cities_graph.json"
+    graph_data = nx.readwrite.json_graph.node_link_data(self)
+    with open(filename, mode='w') as json_output:  # Overwrites any existing file.
+        json.dump(graph_data, json_output)
+
 def initialize_pheromone_levels(self):
     """ Initializes the pheromone levels for all edges in the graph
 
@@ -99,9 +137,10 @@ def pheromone_update(self, ant: Ant):
     :param ant:  The ant during the update
     """
     # Update the pheromone levels for each edge the ant took
+    value = self.get_path_value(ant.get_tour())
     for n1, n2 in ant.get_tour():
         self.edges[n1, n2]['pheromone'] = (1 - self.global_evaporation_rate) * self.edges[n1, n2]['pheromone'] + \
-                                          self.global_evaporation_rate * self.initial_pheromone_value
+                                          self.global_evaporation_rate * value
 
 
 def local_pheromone_update(self, edge: Tuple[int, int]):
@@ -184,8 +223,6 @@ def draw(self, edge_highlights: Tuple[Tuple[int,int], ...] = (), best_tour:Tuple
     else:
         plt.draw()
         plt.pause(0.1)
-
-
 
 
 def close_drawing(self):

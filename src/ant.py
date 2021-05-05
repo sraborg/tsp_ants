@@ -38,24 +38,48 @@ class TabuList(dict):
         super().setdefault(_KT, _VT)
 
     def tick(self):
+        """ Updates tenure for all solutions in memory and removes solutions that exceed maximum tenure
+
+        """
         for solution in self:
-            self[solution]["tenure"] -= 1
+            self[solution]["tenure"] += 1
 
             # Remove Solutions that have been in memory too long
-            if self[solution]["tenure"] < self._expiration:
+            if self[solution]["tenure"] > self._tabu_long_memory:
                 del solution
 
-    def in_short_term_memory(self, value) -> bool:
-        if value in self.keys() and self[value]["tenure"] > 0:
-            return True
-        else:
-            return False
+    def in_short_term_memory(self, value: Tuple[Tuple[int, int], ...]) -> bool:
+        """
+
+        :param value:
+        :return:
+        """
+        return value in self.keys() and self[value]["tenure"] <= self._tabu_short_memory
 
     def in_long_term_memory(self, value) -> bool:
-        if value in self.keys() and self[value]["tenure"] <= 0:
-            return True
-        else:
-            return False
+        """
+
+        :param value:
+        :return:
+        """
+        return value in self.keys() and self[value]["tenure"] > 20
+
+    def get_short_term_memory_keys(self):
+        """ Returns a list of all solutions in short term memory
+
+        :return: List of solutions
+        """
+        keys = [key for key in self.keys() if self.in_short_term_memory(key)]
+        return keys
+
+    def get_long_term_memory_keys(self):
+        """ Returns a list of all solutions in long term memory
+
+        :return: List of solutions
+        """
+
+        keys = [key for key in self.keys() if self.in_long_term_memory(key)]
+        return keys
 
     def add_solution(self, solution):
         """
@@ -67,20 +91,22 @@ class TabuList(dict):
         # New Solution
         key = solution
 
-        assert(isinstance(key, tuple))
+        # Case: Not in memory
         if solution not in self:
             self[key] = {}
-            self[key]["tenure"] = self._tabu_short_memory
+            self[key]["tenure"] = 0
             self[key]["frequency"] = 1
         # Case: Solution is already in memory
         else:
+            self[key]["tenure"] = 0 # reset Tenure
             self[key]["frequency"] += 1
 
     def update_memory_structure(self, num_tabu_neighbors:int = 5, tabu_short_memory:int = 20, tabu_long_memory:int = 100):
         self.num_tabu_neighbors = num_tabu_neighbors
         self._tabu_short_memory = tabu_short_memory
         self._tabu_long_memory = tabu_long_memory
-        self._expiration = tabu_long_memory - tabu_short_memory
+        #self._expiration = tabu_long_memory - tabu_short_memory
+
 
 class Ant:
 
@@ -212,7 +238,7 @@ class TabuAnt(Ant):
 
     def __init__(self, graph: PheromoneGraph, heuristic: AntHeuristic,
                  alpha:int = 1, beta:int = 1, epsilon:int = 1, index:int = None,
-                 num_tabu_neighbors:int = 5, tabu_short_memory:int = 20, tabu_long_memory:int = 100, tabu_epsilon=0.05):
+                 num_tabu_neighbors:int = 10, tabu_short_memory:int = 20, tabu_long_memory:int = 100, tabu_epsilon=0.05):
 
         self.index = index
         self.alpha = alpha
@@ -369,31 +395,40 @@ class TabuAnt(Ant):
         return neighbor
 
     def tabu_search(self, solution):
+        """ Performs Tabu Search, searching neighbors around the local solution
 
+        :param solution: The solution to search around
+        :return: The best solution found by tabu search
+        """
         # Generate Neighbors
         neighbors = []
         for i in range(self.num_neighbors):
             neighbors.append(self.tabu_neighbor_search(solution))
 
-        # Get Tabu Solutions
-        tabu_solutions = self.tabu_list.keys()
+        # Get Tabu Solutions (e.g. short term memory)
+        tabu_solutions = self.tabu_list.get_short_term_memory_keys()
 
-        # Filter out Tabu Solutions
+        # Filter out Tabu Solutions (e.g. solutions in short term memory)
         candidate_solutions = list(filter(lambda x: tuple(x) not in tabu_solutions, neighbors))
 
+        # Greedy Selection
         if random.randint(0,1) < self.tabu_epsilon:
             # Check if any neighbor is better
             for candidate in candidate_solutions:
                 if self._graph.get_path_value(candidate) >= self._graph.get_path_value(self.current_solution):
                     self.current_solution = tuple(candidate)
+        # Probabilistic Selection
         else:
             probabilities = []
             total = 0
             for i, candidate in enumerate(candidate_solutions):
                 key = tuple(candidate)
-                probabilities.append(1)
-                if key in self.tabu_list:
-                    probabilities[i] += self.tabu_list[key]["frequency"]
+                probabilities.append(self._graph.get_path_value(candidate))
+
+                # Add Frequency values from long term memory
+                long_term_memory = self.tabu_list.get_long_term_memory_keys()
+                if key in long_term_memory:
+                    probabilities[i] /= self.tabu_list[key]["frequency"]        # weight values inversely by frequency
 
                 total += probabilities[i]
 
@@ -402,8 +437,7 @@ class TabuAnt(Ant):
             self.current_solution = tuple(choice)
 
         # Update Tabulist
-        self.tabu_list.tick()
-
-        self.tabu_list.add_solution(self.current_solution)
+        self.tabu_list.tick()                                   # Update Tenures
+        self.tabu_list.add_solution(self.current_solution)      # Add new value to Tabu List
 
         return self.current_solution
